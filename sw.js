@@ -2,7 +2,7 @@
  * 快取應用 shell（index.html / engine.js / manifest）。
  * 圖示與 Google Fonts 等不列入必載 shell，避免缺檔導致 install 失敗。
  */
-const CACHE = 'tx-ebm-calc-v1';
+const CACHE = 'tx-ebm-calc-v2';
 const SHELL = [
   './',
   'index.html',

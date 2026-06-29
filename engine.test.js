@@ -128,5 +128,27 @@ function fmt(x) { return typeof x === 'number' ? (isFinite(x) ? x.toFixed(4) : S
   approx('10 wilson upper', w.upper, 0.28883, 1e-4);
 })();
 
+// ── 11. 個別化外推 applyToBaseline ──
+// 試驗 RR=0.75；病人基線 PEER=40% → EER=30%、ARR=10%、NNT=10
+(() => {
+  const p = E.applyToBaseline(0.75, 0.40, false);
+  approx('11 EER', p.eer, 0.30);
+  approx('11 ARR', p.arrAbs, 0.10);
+  approx('11 NNT', p.nnt, 10, 1e-6);
+  eq('11 label', p.effectLabel, 'NNT');
+  // RRR 固定：低基線 10% → ARR=2.5%、NNT=40
+  const lo = E.applyToBaseline(0.75, 0.10, false);
+  approx('11 低基線 NNT', lo.nnt, 40, 1e-6);
+})();
+
+// ── 12. 個別化外推：危害方向（RR>1）→ NNH ──
+(() => {
+  const p = E.applyToBaseline(1.5, 0.10, false);
+  approx('12 EER', p.eer, 0.15);
+  approx('12 ARI', p.arrAbs, 0.05);
+  approx('12 NNH', p.nnt, 20, 1e-6);
+  eq('12 label', p.effectLabel, 'NNH');
+})();
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

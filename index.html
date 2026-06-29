@@ -99,6 +99,9 @@
     .adv summary { cursor: pointer; font-size: 0.82rem; color: var(--accent); }
     .adv .results { margin-top: 0.6rem; }
     .corr-note { font-size: 0.72rem; color: var(--warning); margin-top: 0.5rem; }
+    .personalized { margin-top: 1rem; border-top: 1px dashed var(--border); padding-top: 0.9rem; }
+    .personalized .sub-h { font-size: 0.85rem; margin: 0 0 0.6rem; color: var(--accent); font-weight: 700; }
+    .personalized .hint { font-size: 0.72rem; color: var(--text-muted); margin: 0.55rem 0 0; }
 
     /* ── 白話 ── */
     .summary { white-space: pre-wrap; font-family: 'Noto Sans TC', sans-serif; font-size: 0.86rem;
@@ -234,6 +237,11 @@
       </div>
     </fieldset>
 
+    <div class="field" style="margin-top:0.9rem">
+      <label for="peer">病人個別基線風險 PEER（選填，%）— 套用試驗相對風險 (RR) 重算個別化 NNT</label>
+      <input id="peer" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+    </div>
+
     <p id="inputErr" class="err"></p>
   </section>
 
@@ -247,6 +255,7 @@
       <summary>進階指標（RR / OR）</summary>
       <div id="metricsAdv" class="results"></div>
     </details>
+    <div id="personalized" class="personalized hidden"></div>
   </section>
 
   <!-- ── 區塊 3：白話 ── -->
@@ -269,6 +278,7 @@
       <label><input type="radio" name="chart" value="cates" checked> Cates plot</label>
       <label><input type="radio" name="chart" value="bar"> 長條圖</label>
       <label><input type="radio" name="chart" value="both"> 兩者併呈</label>
+      <label style="margin-left:auto"><input type="checkbox" id="cbSafe"> 色盲友善配色</label>
     </div>
     <div id="charts" class="charts"></div>
   </section>
@@ -448,19 +458,39 @@
         ? `\nNNT 95% CI：${infStr(r.ci.nnt.low)}–${infStr(r.ci.nnt.high)} 人。`
         : `\nNNT 95% CI 跨越「無差異」：NNTB ${infStr(r.ci.nnt.benefit)} … ∞ … NNTH ${infStr(r.ci.nnt.harm)}（差異未達統計顯著）。`;
     }
-    return line1 + '\n' + line2 + ciLine;
+    // 個別化外推補述
+    let peerLine = '';
+    const pv = $('peer').value;
+    if (pv !== '' && +pv > 0 && +pv <= 100) {
+      const rr = transportRR(out);
+      if (isFinite(rr)) {
+        const pp = TxEbm.applyToBaseline(rr, +pv / 100, otype() === 'good');
+        peerLine = `\n套用到病人個別基線風險 ${pct(+pv / 100)}（假設 RR ${num(rr)} 不變）：` +
+          `個別化 ${pp.effectLabel} ${ceilStr(pp.nnt)}（ARR ${pct(pp.arrAbs)}）。`;
+      }
+    }
+    return line1 + '\n' + line2 + ciLine + peerLine;
   }
 
   // ── Cates plot（10×10）──
   const CATES = { cols: 10, r: 9, gap: 24, pad: 14 };
-  function drawCates(c) {
+  // 配色：warm（預設，沿用 Cates 綠/紅）；cb（Okabe-Ito 色盲安全，藍/灰/橙）
+  function catesPalette(changedType, cbSafe) {
+    if (cbSafe) return {
+      good: '#9DC3E6', bad: '#BFBFBF',
+      changed: changedType === 'helped' ? '#E69F00' : '#D55E00',
+      changedStroke: '#7a4f00', hatch: true,
+    };
+    return {
+      good: '#9CC5AE', bad: '#D9A7A1',
+      changed: changedType === 'helped' ? '#D98E04' : '#C0392B',
+      changedStroke: '#7a4f00', hatch: false,
+    };
+  }
+  function drawCates(c, cbSafe) {
     const { cols, r, gap, pad } = CATES;
     const size = pad * 2 + (cols - 1) * gap + r * 2;
-    const colors = {
-      good: '#9CC5AE',
-      bad: '#D9A7A1',
-      changed: c.changedType === 'helped' ? '#D98E04' : '#C0392B',
-    };
+    const P = catesPalette(c.changedType, cbSafe);
     // 排列順序：good → changed → bad（changed 集中於中段，最醒目）
     const seq = [];
     for (let i = 0; i < c.good; i++) seq.push('good');
@@ -468,20 +498,32 @@
     for (let i = 0; i < c.bad; i++) seq.push('bad');
     while (seq.length < 100) seq.push('good');
 
+    // 色盲模式：以斜線圖樣為 changed 加上「形狀」冗餘編碼（不只靠顏色）
+    const defs = P.hatch
+      ? `<defs><pattern id="cbHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+        `<rect width="6" height="6" fill="${P.changed}"/><line x1="0" y1="0" x2="0" y2="6" stroke="#5a3d00" stroke-width="2.4"/></pattern></defs>`
+      : '';
     let g = '';
     seq.slice(0, 100).forEach((k, i) => {
       const cx = pad + r + (i % cols) * gap;
       const cy = pad + r + Math.floor(i / cols) * gap;
-      const stroke = k === 'changed' ? ' stroke="#7a4f00" stroke-width="1"' : '';
-      g += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${colors[k]}"${stroke}/>`;
+      if (k === 'changed') {
+        const fill = P.hatch ? 'url(#cbHatch)' : P.changed;
+        g += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="${P.changedStroke}" stroke-width="1.4"/>`;
+      } else {
+        g += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${P[k]}"/>`;
+      }
     });
     const changedLabel = c.changedType === 'helped' ? '因治療避免事件' : '因治療多出事件';
+    const swatch = (col, hatch) => hatch
+      ? `<i style="background:${col};background-image:repeating-linear-gradient(45deg,transparent 0 2px,#5a3d00 2px 3px)"></i>`
+      : `<i style="background:${col}"></i>`;
     return `<div class="chart-box"><h3>每 100 名相似病人</h3>` +
-      `<svg viewBox="0 0 ${size} ${size}" role="img" aria-label="Cates plot">${g}</svg>` +
+      `<svg viewBox="0 0 ${size} ${size}" role="img" aria-label="Cates plot">${defs}${g}</svg>` +
       `<div class="legend">` +
-      `<span><i style="background:${colors.good}"></i>${c.good}：不論是否治療都不會發生</span>` +
-      `<span><i style="background:${colors.changed}"></i>${c.changed}：${changedLabel}</span>` +
-      `<span><i style="background:${colors.bad}"></i>${c.bad}：不論是否治療都會發生</span>` +
+      `<span>${swatch(P.good, false)}${c.good}：不論是否治療都不會發生</span>` +
+      `<span>${swatch(P.changed, P.hatch)}${c.changed}：${changedLabel}</span>` +
+      `<span>${swatch(P.bad, false)}${c.bad}：不論是否治療都會發生</span>` +
       `</div></div>`;
   }
 
@@ -511,10 +553,35 @@
     const cer = out.kind === 'rate' ? r.riskC : r.cer;
     const eer = out.kind === 'rate' ? r.riskE : r.eer;
     const m = chartMode();
+    const cbSafe = $('cbSafe').checked;
     let html = '';
-    if (m === 'cates' || m === 'both') html += drawCates(r.cates);
+    if (m === 'cates' || m === 'both') html += drawCates(r.cates, cbSafe);
     if (m === 'bar' || m === 'both') html += drawBar(cer, eer);
     $('charts').innerHTML = html;
+  }
+
+  // ── 個別化外推（套用試驗 RR 到病人基線 PEER）──
+  function transportRR(out) {
+    return out.kind === 'rate' ? out.r.riskE / out.r.riskC : out.r.rr;
+  }
+  function renderPersonalized(out) {
+    const box = $('personalized');
+    const v = $('peer').value;
+    if (v === '') { box.innerHTML = ''; box.classList.add('hidden'); return; }
+    const peer = +v;
+    if (!(peer > 0 && peer <= 100)) {
+      box.innerHTML = '<p class="err">PEER 需介於 0–100%。</p>'; box.classList.remove('hidden'); return;
+    }
+    const rr = transportRR(out);
+    if (!isFinite(rr)) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+    const p = TxEbm.applyToBaseline(rr, peer / 100, otype() === 'good');
+    const isNNT = p.effectLabel === 'NNT';
+    let h = `<h3 class="sub-h">個別化外推：套用試驗 RR ${num(rr)} 到病人基線 ${pct(peer / 100)}</h3><div class="results">`;
+    h += metricCard(isNNT ? '個別化 NNT' : '個別化 NNH', ceilStr(p.nnt), '', { key: true, harm: !p.benefit });
+    h += metricCard('個別化 ARR', pct(p.arrAbs), '');
+    h += metricCard('病人預估 EER', pct(p.eer), '');
+    h += '</div><p class="hint">假設相對風險 (RR) 可外推（RRR 固定，Sackett/CEBM 法）；信賴區間未隨基線重算。</p>';
+    box.innerHTML = h; box.classList.remove('hidden');
   }
 
   // ── 主流程 ──
@@ -528,6 +595,7 @@
     renderMetrics(out);
     $('summary').textContent = buildSummary(out);
     renderCharts(out);
+    renderPersonalized(out);
   }
   function blank(msg) {
     lastOut = null;
@@ -537,6 +605,7 @@
     $('summary').textContent = '（請先輸入資料）';
     $('charts').innerHTML = '';
     $('corrNote').classList.add('hidden');
+    $('personalized').innerHTML = ''; $('personalized').classList.add('hidden');
   }
 
   // ── 範例載入 ──
@@ -554,7 +623,8 @@
   document.querySelectorAll('input[name=mode]').forEach((el) => el.addEventListener('change', showMode));
   document.querySelectorAll('input[name=otype]').forEach((el) => el.addEventListener('change', recalc));
   document.querySelectorAll('input[name=chart]').forEach((el) => el.addEventListener('change', () => lastOut && renderCharts(lastOut)));
-  ['a', 'b', 'c', 'd', 'eer', 'cer', 'nE', 'nC', 'eE', 'pyE', 'eC', 'pyC', 'horizon', 'nmInt', 'nmCtl', 'nmOut', 'nmPop']
+  $('cbSafe').addEventListener('change', () => lastOut && renderCharts(lastOut));
+  ['a', 'b', 'c', 'd', 'eer', 'cer', 'nE', 'nC', 'eE', 'pyE', 'eC', 'pyC', 'horizon', 'peer', 'nmInt', 'nmCtl', 'nmOut', 'nmPop']
     .forEach((id) => $(id).addEventListener('input', recalc));
 
   const sel = $('scenario');
@@ -576,7 +646,7 @@
   });
   $('printBtn').addEventListener('click', () => window.print());
   $('clearBtn').addEventListener('click', () => {
-    ['a', 'b', 'c', 'd', 'eer', 'cer', 'nE', 'nC', 'eE', 'pyE', 'eC', 'pyC', 'nmInt', 'nmCtl', 'nmOut', 'nmPop']
+    ['a', 'b', 'c', 'd', 'eer', 'cer', 'nE', 'nC', 'eE', 'pyE', 'eC', 'pyC', 'peer', 'nmInt', 'nmCtl', 'nmOut', 'nmPop']
       .forEach((id) => { $(id).value = ''; });
     $('horizon').value = '5'; sel.value = '';
     document.querySelector('input[name=mode][value=counts]').checked = true;

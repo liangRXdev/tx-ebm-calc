@@ -111,6 +111,25 @@
     };
   }
 
+  // ── 個別化外推：把試驗的相對風險(RR) 套到病人個別基線風險(PEER) ──
+  // 假設相對效果可外推（RRR 固定，Sackett/CEBM 法）：
+  //   病人 EER = PEER × RR；個別化 ARR = |PEER − EER|；NNT = 1/ARR。
+  function applyToBaseline(rr, peer, outcomeIsGood) {
+    const eer = Math.min(0.999999, Math.max(0, peer * rr));
+    const arrSigned = peer - eer;
+    const arrAbs = Math.abs(arrSigned);
+    const dir = direction(arrSigned, !!outcomeIsGood);
+    return {
+      rr, peer, eer,
+      arrSigned, arrAbs,
+      benefit: dir.benefit,
+      effectLabel: dir.label,
+      nnt: arrAbs > 0 ? 1 / arrAbs : Infinity,
+      nntCeil: arrAbs > 0 ? Math.ceil(1 / arrAbs) : Infinity,
+      cates: catesData(eer, peer),
+    };
+  }
+
   // ── 主入口：二元結果（counts / risk 模式共用）──
   // 參數物件：{ rE, nE, rC, nC, outcomeIsGood=false, conf=0.95 }
   //   rE/rC 可為非整數（risk 模式由百分比×樣本數推得）
@@ -201,6 +220,6 @@
 
   return {
     zFor, wilson, newcombeRD, nntCI, ratioMeasures, direction, catesData,
-    computeBinary, computeRate, fromCounts, fromRisks,
+    applyToBaseline, computeBinary, computeRate, fromCounts, fromRisks,
   };
 });
