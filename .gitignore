@@ -1,0 +1,7 @@
+# 本機開發用靜態伺服器腳本（非應用程式檔）
+.serve.js
+
+# OS / 編輯器
+.DS_Store
+Thumbs.db
+node_modules/
