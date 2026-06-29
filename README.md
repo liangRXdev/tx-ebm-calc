@@ -3,6 +3,7 @@
 互動式治療效益實證計算器：輸入兩組結果，產生 **ARR / NNT / NNH / RRR / RR / OR**、可複製的**白話說明**，以及**百人效益圖（Cates plot）/ 長條圖**，並可列印單頁總表。為 [dx-ebm-calc](https://github.com/liangRXdev/dx-ebm-calc)（診斷端）的姊妹作。
 
 > 教學／實證練習用，**非臨床決策依據**。
+
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Click%20Here-blue?style=for-the-badge)](https://liangrxdev.github.io/tx-ebm-calc/)
 ## 功能
 
