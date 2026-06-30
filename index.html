@@ -134,15 +134,35 @@
     .err { color: var(--danger); font-size: 0.82rem; }
     .hidden { display: none !important; }
 
-    /* ── 列印 ── */
+    /* ── 列印報告（單頁匯總）── */
+    #printReport { display: none; }
     @media print {
-      body { background: #fff; }
-      .wrap { max-width: 100%; padding: 0; }
-      .no-print, .adv summary { display: none !important; }
-      .adv[open] .results, .adv .results { display: grid !important; }
-      .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; margin-top: 0.6rem; }
-      header { padding: 0.4rem 0; }
-      .charts { justify-content: flex-start; }
+      @page { margin: 14mm; }
+      body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .wrap { display: none !important; }
+      #printReport { display: block; font-family: 'Noto Sans TC', sans-serif; color: var(--text-primary); font-size: 11px; line-height: 1.5; }
+      #printReport .pr-head { border-bottom: 2px solid var(--accent); padding-bottom: 6px; margin-bottom: 10px;
+        display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+      #printReport h1 { font-size: 17px; margin: 0; color: var(--accent); }
+      #printReport .pr-meta { font-size: 10px; color: var(--text-muted); text-align: right; white-space: nowrap; }
+      #printReport section { margin: 0 0 10px; break-inside: avoid; }
+      #printReport h2 { font-size: 12px; margin: 0 0 4px; color: var(--accent);
+        border-left: 3px solid var(--accent); padding-left: 6px; }
+      #printReport table { border-collapse: collapse; width: 100%; }
+      #printReport th, #printReport td { border: 1px solid var(--border); padding: 3px 6px; text-align: left; vertical-align: top; }
+      #printReport .pr-kv th { background: var(--accent-light); white-space: nowrap; font-weight: 500; }
+      #printReport .pr-metrics th { background: var(--accent-light); font-weight: 500; }
+      #printReport .pr-metrics td.v { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+      #printReport .pr-metrics td.ci { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+      #printReport .pr-metrics tr.key th, #printReport .pr-metrics tr.key td { background: rgba(61,122,138,0.12); }
+      #printReport .pr-grid th, #printReport .pr-grid td { text-align: center; }
+      #printReport .pr-summary { white-space: pre-wrap; background: #FBF8F2; border: 1px solid var(--border);
+        border-radius: 4px; padding: 8px 10px; font-size: 11px; line-height: 1.7; }
+      #printReport .pr-chart .chart-box { display: inline-block; vertical-align: top; margin: 0 16px 0 0; text-align: left; }
+      #printReport .pr-chart svg { max-width: 280px; height: auto; }
+      #printReport .pr-chart .legend { font-size: 9px; max-width: 280px; margin: 0.3rem 0 0; }
+      #printReport .pr-disclaimer { font-size: 9px; color: var(--text-muted);
+        border-top: 1px solid var(--border); padding-top: 6px; margin-top: 8px; }
     }
     @media (max-width: 480px) { .matrix input { width: 3.6rem; } }
   </style>
@@ -309,6 +329,9 @@
     人年模式累積風險採 1−e<sup>−rate·t</sup>。Cates plot 概念：Cates CJ, visualrx.com。
   </p>
 </div>
+
+<!-- ── 列印用單頁報告（點「列印說明總表」時動態填入，僅列印時顯示）── -->
+<div id="printReport"></div>
 
 <script src="engine.js"></script>
 <script>
@@ -648,6 +671,121 @@
     box.innerHTML = h; box.classList.remove('hidden');
   }
 
+  // ── 列印單頁報告 ──
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  function reportInputHTML() {
+    const m = mode();
+    if (m === 'counts') {
+      const a = +$('a').value, b = +$('b').value, c = +$('c').value, d = +$('d').value;
+      return `<table class="pr-grid">
+        <tr><td></td><th>事件</th><th>無事件</th><th>合計</th></tr>
+        <tr><th>介入組</th><td>${a}</td><td>${b}</td><td>${a + b}</td></tr>
+        <tr><th>對照組</th><td>${c}</td><td>${d}</td><td>${c + d}</td></tr></table>`;
+    }
+    if (m === 'risk') {
+      return `<table class="pr-kv">
+        <tr><th>介入組事件率 EER</th><td>${$('eer').value}%</td></tr>
+        <tr><th>對照組事件率 CER</th><td>${$('cer').value}%</td></tr>
+        <tr><th>樣本數（介入 / 對照）</th><td>${$('nE').value || '—'} / ${$('nC').value || '—'}</td></tr></table>`;
+    }
+    return `<table class="pr-kv">
+      <tr><th>介入組（事件 / 人年）</th><td>${$('eE').value} / ${$('pyE').value}</td></tr>
+      <tr><th>對照組（事件 / 人年）</th><td>${$('eC').value} / ${$('pyC').value}</td></tr>
+      <tr><th>時間框架</th><td>${$('horizon').value} 年</td></tr></table>`;
+  }
+
+  function reportMetricRows(out) {
+    const r = out.r, rows = [];
+    if (out.kind === 'binary') {
+      const isNNT = r.effectLabel === 'NNT';
+      const arrName = (otype() === 'good' ? '絕對效益' : (r.benefit ? '絕對風險下降 (ARR)' : '絕對風險增加 (ARI)'));
+      const nntCi = r.ci.nnt
+        ? (r.ci.nnt.type === 'finite'
+          ? `${infStr(r.ci.nnt.low)}–${infStr(r.ci.nnt.high)}`
+          : `NNTB ${infStr(r.ci.nnt.benefit)} … ∞ … NNTH ${infStr(r.ci.nnt.harm)}`)
+        : '';
+      rows.push([isNNT ? 'NNT（益一需治）' : 'NNH（害一需治）', ceilStr(r.nnt), nntCi, true]);
+      rows.push([arrName, pct(r.arrAbs), out.noCI ? '（未輸入樣本數）' : `${pct(r.ci.arr.lower)}–${pct(r.ci.arr.upper)}`]);
+      rows.push(['相對風險下降 (RRR)', pct(r.rrr), '']);
+      rows.push(['對照組事件率 CER', pct(r.cer), '']);
+      rows.push(['介入組事件率 EER', pct(r.eer), '']);
+      rows.push(['相對風險 (RR)', num(r.rr), out.noCI ? '' : `${num(r.ci.rr.lower)}–${num(r.ci.rr.upper)}`]);
+      rows.push(['勝算比 (OR)', num(r.or), out.noCI ? '' : `${num(r.ci.or.lower)}–${num(r.ci.or.upper)}`]);
+    } else {
+      const per = 1000, isNNT = r.effectLabel === 'NNT';
+      rows.push([`${r.horizon} 年 ${isNNT ? 'NNT' : 'NNH'}`, ceilStr(r.nnt), '', true]);
+      rows.push([`${r.horizon} 年絕對風險差`, pct(r.arrAbs), '']);
+      rows.push(['比率差（每 1000 人年）', num(r.rateDiff * per, 1), `${num(r.rateDiffCI.lower * per, 1)}–${num(r.rateDiffCI.upper * per, 1)}`]);
+      rows.push(['比率比 (Rate Ratio)', num(r.rateRatio), `${num(r.rateRatioCI.lower)}–${num(r.rateRatioCI.upper)}`]);
+      rows.push(['對照組累積風險', pct(r.riskC), `${num(r.rateC * per, 1)}/1000人年`]);
+      rows.push(['介入組累積風險', pct(r.riskE), `${num(r.rateE * per, 1)}/1000人年`]);
+    }
+    const cpe = costPerEvent(r.nnt, r.benefit);
+    if (cpe != null) rows.push(['每預防 1 事件成本', money(cpe), `NNT ${ceilStr(r.nnt)} × 成本`]);
+    return rows.map((row) =>
+      `<tr${row[3] ? ' class="key"' : ''}><th>${row[0]}</th><td class="v">${row[1]}</td><td class="ci">${row[2] || ''}</td></tr>`
+    ).join('');
+  }
+
+  function reportPeerHTML(out) {
+    const v = $('peer').value;
+    if (v === '' || !(+v > 0 && +v <= 100)) return '';
+    const rr = transportRR(out);
+    if (!isFinite(rr)) return '';
+    const pp = TxEbm.applyToBaseline(rr, +v / 100, otype() === 'good');
+    const pcpe = costPerEvent(pp.nnt, pp.benefit);
+    return `<section>
+      <h2>個別化外推（套用試驗 RR 到病人基線）</h2>
+      <table class="pr-metrics">
+        <tr class="key"><th>個別化 ${pp.effectLabel}</th><td class="v">${ceilStr(pp.nnt)}</td><td class="ci">RR ${num(rr)} · 基線 ${pct(+v / 100)}</td></tr>
+        <tr><th>個別化 ARR</th><td class="v">${pct(pp.arrAbs)}</td><td class="ci"></td></tr>
+        <tr><th>病人預估 EER</th><td class="v">${pct(pp.eer)}</td><td class="ci"></td></tr>
+        ${pcpe != null ? `<tr><th>個別化每預防 1 事件成本</th><td class="v">${money(pcpe)}</td><td class="ci"></td></tr>` : ''}
+      </table></section>`;
+  }
+
+  function buildPrintReport(out) {
+    const n = names();
+    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+    const modeLabel = { counts: '四宮格（人數）', risk: '百分比（風險）', rate: '人年（Patient-Years）' }[mode()];
+    const otypeLabel = otype() === 'good' ? '有益事件（要增加）' : '不良事件（要減少）';
+    $('printReport').innerHTML =
+      `<div class="pr-head">
+        <h1>治療效益 EBM 報告</h1>
+        <div class="pr-meta">${esc(n.int)} vs ${esc(n.ctl)}<br>產生時間：${ts}</div>
+      </div>
+      <section>
+        <h2>情境設定</h2>
+        <table class="pr-kv">
+          <tr><th>介入</th><td>${esc(n.int)}</td><th>對照</th><td>${esc(n.ctl)}</td></tr>
+          <tr><th>族群</th><td>${esc(n.pop)}</td><th>結果事件</th><td>${esc(n.out)}（${otypeLabel}）</td></tr>
+          <tr><th>輸入模式</th><td colspan="3">${modeLabel}</td></tr>
+        </table>
+      </section>
+      <section>
+        <h2>原始輸入</h2>
+        ${reportInputHTML()}
+      </section>
+      <section>
+        <h2>核心效益指標</h2>
+        <table class="pr-metrics">
+          <tr><th>指標</th><th>數值</th><th>95% CI / 註</th></tr>
+          ${reportMetricRows(out)}
+        </table>
+      </section>
+      ${reportPeerHTML(out)}
+      <section>
+        <h2>白話結論</h2>
+        <div class="pr-summary">${esc($('summary').textContent)}</div>
+      </section>
+      <section class="pr-chart">
+        <h2>百人效益圖</h2>
+        ${$('charts').innerHTML}
+      </section>
+      <p class="pr-disclaimer">本工具為教學／實證練習用，非臨床決策依據。NNT 之 95% CI 用 Altman 法 (BMJ 1998;317:1309)，跨 0 時表為「NNTB…∞…NNTH」；ARR 用 Newcombe-Wilson；RR 用 Katz、OR 用 Woolf log 法；零格自動 +0.5 校正。人年模式累積風險採 1−e^(−rate·t)。Cates plot 概念：Cates CJ, visualrx.com。</p>`;
+  }
+
   // ── 主流程 ──
   let lastOut = null;
   function recalc() {
@@ -710,7 +848,11 @@
       document.body.removeChild(ta);
     }
   });
-  $('printBtn').addEventListener('click', () => window.print());
+  $('printBtn').addEventListener('click', () => {
+    if (!lastOut) { $('inputErr').textContent = '請先完整輸入資料，待指標計算後再列印說明總表。'; return; }
+    buildPrintReport(lastOut);
+    window.print();
+  });
   $('clearBtn').addEventListener('click', () => {
     ['a', 'b', 'c', 'd', 'eer', 'cer', 'nE', 'nC', 'eE', 'pyE', 'eC', 'pyC', 'peer', 'cost', 'nmInt', 'nmCtl', 'nmOut', 'nmPop']
       .forEach((id) => { $(id).value = ''; });

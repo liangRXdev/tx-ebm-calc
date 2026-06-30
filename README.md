@@ -5,6 +5,9 @@
 > 教學／實證練習用，**非臨床決策依據**。
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Click%20Here-blue?style=for-the-badge)](https://liangrxdev.github.io/tx-ebm-calc/)
+
+![百人效益圖（Cates plot 人偶）與事件率長條圖併呈](docs/screenshot-charts.png)
+
 ## 功能
 
 - **三種輸入模式**
