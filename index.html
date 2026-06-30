@@ -137,32 +137,32 @@
     /* ── 列印報告（單頁匯總）── */
     #printReport { display: none; }
     @media print {
-      @page { margin: 14mm; }
+      @page { margin: 15mm; }
       body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .wrap { display: none !important; }
-      #printReport { display: block; font-family: 'Noto Sans TC', sans-serif; color: var(--text-primary); font-size: 11px; line-height: 1.5; }
-      #printReport .pr-head { border-bottom: 2px solid var(--accent); padding-bottom: 6px; margin-bottom: 10px;
+      #printReport { display: block; font-family: 'Noto Sans TC', sans-serif; color: var(--text-primary); font-size: 13px; line-height: 1.55; }
+      #printReport .pr-head { border-bottom: 2px solid var(--accent); padding-bottom: 7px; margin-bottom: 12px;
         display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
-      #printReport h1 { font-size: 17px; margin: 0; color: var(--accent); }
-      #printReport .pr-meta { font-size: 10px; color: var(--text-muted); text-align: right; white-space: nowrap; }
-      #printReport section { margin: 0 0 10px; break-inside: avoid; }
-      #printReport h2 { font-size: 12px; margin: 0 0 4px; color: var(--accent);
-        border-left: 3px solid var(--accent); padding-left: 6px; }
+      #printReport h1 { font-size: 20px; margin: 0; color: var(--accent); }
+      #printReport .pr-meta { font-size: 11.5px; color: var(--text-muted); text-align: right; white-space: nowrap; }
+      #printReport section { margin: 0 0 12px; break-inside: avoid; }
+      #printReport h2 { font-size: 14.5px; margin: 0 0 5px; color: var(--accent);
+        border-left: 3px solid var(--accent); padding-left: 7px; }
       #printReport table { border-collapse: collapse; width: 100%; }
-      #printReport th, #printReport td { border: 1px solid var(--border); padding: 3px 6px; text-align: left; vertical-align: top; }
+      #printReport th, #printReport td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
       #printReport .pr-kv th { background: var(--accent-light); white-space: nowrap; font-weight: 500; }
       #printReport .pr-metrics th { background: var(--accent-light); font-weight: 500; }
       #printReport .pr-metrics td.v { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
-      #printReport .pr-metrics td.ci { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+      #printReport .pr-metrics td.ci { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
       #printReport .pr-metrics tr.key th, #printReport .pr-metrics tr.key td { background: rgba(61,122,138,0.12); }
       #printReport .pr-grid th, #printReport .pr-grid td { text-align: center; }
       #printReport .pr-summary { white-space: pre-wrap; background: #FBF8F2; border: 1px solid var(--border);
-        border-radius: 4px; padding: 8px 10px; font-size: 11px; line-height: 1.7; }
+        border-radius: 4px; padding: 10px 12px; font-size: 13px; line-height: 1.75; }
       #printReport .pr-chart .chart-box { display: inline-block; vertical-align: top; margin: 0 16px 0 0; text-align: left; }
-      #printReport .pr-chart svg { max-width: 280px; height: auto; }
-      #printReport .pr-chart .legend { font-size: 9px; max-width: 280px; margin: 0.3rem 0 0; }
-      #printReport .pr-disclaimer { font-size: 9px; color: var(--text-muted);
-        border-top: 1px solid var(--border); padding-top: 6px; margin-top: 8px; }
+      #printReport .pr-chart svg { max-width: 300px; height: auto; }
+      #printReport .pr-chart .legend { font-size: 11px; max-width: 300px; margin: 0.35rem 0 0; }
+      #printReport .pr-disclaimer { font-size: 10.5px; color: var(--text-muted);
+        border-top: 1px solid var(--border); padding-top: 7px; margin-top: 10px; }
     }
     @media (max-width: 480px) { .matrix input { width: 3.6rem; } }
   </style>
