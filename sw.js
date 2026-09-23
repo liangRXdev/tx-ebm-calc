@@ -2,7 +2,8 @@
  * 快取應用 shell（index.html / engine.js / manifest）。
  * 圖示與 Google Fonts 等不列入必載 shell，避免缺檔導致 install 失敗。
  */
-const CACHE = 'tx-ebm-calc-v5';
+const PREFIX = 'tx-ebm-calc-';
+const CACHE = `${PREFIX}v5`;
 const SHELL = [
   './',
   'index.html',
@@ -23,7 +24,12 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // 只汰換**本工具自己的** cache。
+      // 本站與其他工具共用 liangrxdev.github.io 這個 origin，CacheStorage 是整個
+      // origin 共用的——少了前綴守衛，這裡的 activate 會把鄰居工具的離線快取一起刪光。
+      .then((keys) => Promise.all(
+        keys.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k)),
+      ))
       .then(() => self.clients.claim())
   );
 });
