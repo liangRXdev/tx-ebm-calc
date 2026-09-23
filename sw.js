@@ -3,7 +3,7 @@
  * 圖示與 Google Fonts 等不列入必載 shell，避免缺檔導致 install 失敗。
  */
 const PREFIX = 'tx-ebm-calc-';
-const CACHE = `${PREFIX}v5`;
+const CACHE = `${PREFIX}v6`;
 const SHELL = [
   './',
   'index.html',
