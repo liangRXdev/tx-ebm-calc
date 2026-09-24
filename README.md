@@ -1,78 +1,80 @@
-# 治療效益 EBM 計算器（tx-ebm-calc）
+# Treatment-Effect EBM Calculator (tx-ebm-calc)
 
-互動式治療效益實證計算器：輸入兩組結果，產生 **ARR / NNT / NNH / RRR / RR / OR**、可複製的**白話說明**，以及**百人效益圖（Cates plot）/ 長條圖**，並可列印單頁總表。為 [dx-ebm-calc](https://github.com/liangRXdev/dx-ebm-calc)（診斷端）的姊妹作。
+**English** | [繁體中文](README.zh-TW.md)
 
-> 教學／實證練習用，**非臨床決策依據**。
+An interactive evidence-based calculator for treatment effects: enter results for two groups and get **ARR / NNT / NNH / RRR / RR / OR**, a copyable **plain-language explanation**, and a **100-person Cates plot / bar chart**, with a printable one-page summary. Sister project of [dx-ebm-calc](https://github.com/liangRXdev/dx-ebm-calc) (the diagnostic side).
+
+> For teaching and EBM practice only — **not a basis for clinical decisions**. The interface is in Traditional Chinese.
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Click%20Here-blue?style=for-the-badge)](https://liangrxdev.github.io/tx-ebm-calc/)
 
-![百人效益圖（Cates plot 人偶）與事件率長條圖併呈](docs/screenshot-charts.png)
+![100-person Cates plot (pictogram) shown alongside an event-rate bar chart](docs/screenshot-charts.png)
 
-## 功能
+## Features
 
-### 輸入
-- **三種輸入模式**
-  - 四宮格（人數）：介入／對照 × 事件／無事件
-  - 百分比（風險）：EER / CER（可附樣本數以算 CI）
-  - 人年（Patient-Years）：事件數 + 人年 + 時間框架，累積風險採 `1 − e^(−rate·t)`
-- **內建教學範例**：一鍵載入示意情境（二級預防、戒菸介入、人年中風），快速上手
-- **結果事件性質切換**：依「不良事件（要減少）／有益事件（要增加）」**自動判定**產出 NNT（效益）或 NNH（危害），白話與圖示方向同步調整
+### Input
+- **Three input modes**
+  - 2×2 table (counts): intervention / control × event / no event
+  - Percentages (risk): EER / CER (optionally with sample sizes for CIs)
+  - Patient-years: events + patient-years + time frame; cumulative risk uses `1 − e^(−rate·t)`
+- **Built-in teaching examples**: load illustrative scenarios in one click (secondary prevention, smoking-cessation intervention, stroke per patient-year)
+- **Outcome direction toggle**: choose "adverse event (want fewer)" or "beneficial event (want more)" and the tool **automatically** reports NNT (benefit) or NNH (harm), with the wording and charts following suit
 
-### 效益指標
-- **白話核心**：ARR/ARI、NNT/NNH、RRR、CER、EER
-- **進階指標（可收合）**：RR、OR
-- **NNT 信賴區間**：採 Altman 法；跨「無差異」時清楚表為 `NNTB … ∞ … NNTH`，不會誤導為單一有限值
-- **零格自動校正**：任一格為 0 時對比值型指標 (RR/OR) 套 +0.5 連續性校正並於畫面標示
-- **人年模式專屬**：累積風險換算、比率差／比率比（每 1000 人年）含 CI
+### Effect measures
+- **Plain-language core**: ARR/ARI, NNT/NNH, RRR, CER, EER
+- **Advanced measures (collapsible)**: RR, OR
+- **NNT confidence interval**: Altman's method; when the interval crosses "no difference" it is shown as `NNTB … ∞ … NNTH` rather than a misleading single finite value
+- **Automatic zero-cell correction**: when any cell is 0, ratio measures (RR/OR) get a +0.5 continuity correction, flagged on screen
+- **Patient-years mode only**: cumulative-risk conversion, rate difference / rate ratio (per 1,000 patient-years) with CIs
 
-### 個別化與成本（臨床決策輔助）
-- **個別化外推**：輸入病人個別基線風險 PEER，套用試驗相對風險 (RR) 重算**個別化 NNT / ARR / 預估 EER**（Sackett/CEBM 法，假設 RRR 固定）
-- **每預防 1 事件成本**：填入每人介入成本即算 `NNT × 成本`；個別化情境另給對應成本
+### Individualization and cost (decision support)
+- **Individualized extrapolation**: enter a patient's baseline risk (PEER); the trial RR is applied to recompute an **individualized NNT / ARR / expected EER** (Sackett/CEBM method, assumes constant RRR)
+- **Cost to prevent one event**: enter per-patient intervention cost to get `NNT × cost`; the individualized scenario gets its own cost figure
 
-### 白話說明
-- **一鍵複製**：適合貼入病歷／教學講義
-- 自動帶入介入／對照／結果／族群用詞，並附上 NNT CI、成本、個別化外推等補述
+### Plain-language explanation
+- **One-click copy**: suitable for pasting into notes or teaching handouts
+- Automatically fills in intervention / control / outcome / population wording, plus NNT CI, cost and individualized-extrapolation remarks
 
-### 視覺化（圖一律唯讀，手機友善）
-- **百人效益圖 (Cates plot)**：以 100 名相似病人呈現「不論治療都不發生／因治療避免事件／不論治療都發生」三類
-  - 圖示可切換 **圓點 / 人偶**
-  - 排列可切換 **群聚 / 隨機散布**（同組資料版面穩定）
-- **長條圖**：CER vs EER 並標註 **Δ（ARR 落差）**
-- **併呈模式**：Cates plot + 長條圖同時顯示
-- **色盲友善配色**：Okabe-Ito 安全色，並以斜線圖樣為關鍵類別加上「形狀」冗餘編碼（不只靠顏色）
+### Visualization (charts are read-only and mobile-friendly)
+- **100-person Cates plot**: 100 similar patients split into "no event regardless of treatment / event avoided thanks to treatment / event regardless of treatment"
+  - Icons switch between **dots / pictograms**
+  - Layout switches between **clustered / randomly scattered** (stable for the same data)
+- **Bar chart**: CER vs EER with the **Δ (ARR gap)** annotated
+- **Side-by-side mode**: Cates plot and bar chart together
+- **Colorblind-safe palette**: Okabe-Ito colors, with hatching as redundant "shape" encoding for key categories (not relying on color alone)
 
-### 輸出與體驗
-- **列印說明總表**：將情境、原始輸入、核心指標、個別化外推、白話結論、百人圖與免責聲明整理為**單頁匯總報告**，可送印 / 另存 PDF
-- **PWA**：可安裝、離線可用
-- **手機友善**：數字鍵盤 (`inputmode`)、圖表唯讀避免誤觸
+### Output and experience
+- **Printable summary**: scenario, raw inputs, core measures, individualized extrapolation, plain-language conclusion, Cates plot and disclaimer on a **single-page report** — print or save as PDF
+- **PWA**: installable, works offline
+- **Mobile-friendly**: numeric keypad (`inputmode`), read-only charts to avoid accidental taps
 
-## 統計方法
+## Statistical Methods
 
-| 指標 | 95% CI 方法 | 來源 |
+| Measure | 95% CI method | Source |
 |---|---|---|
-| ARR（風險差） | Newcombe-Wilson hybrid score | Newcombe, Stat Med 1998 |
-| NNT | 由 ARR 的 CI 取倒數；跨 0 時表為「NNTB…∞…NNTH」 | Altman, BMJ 1998;317:1309 |
+| ARR (risk difference) | Newcombe-Wilson hybrid score | Newcombe, Stat Med 1998 |
+| NNT | Reciprocal of the ARR CI; shown as "NNTB…∞…NNTH" when crossing 0 | Altman, BMJ 1998;317:1309 |
 | RR | Katz log | |
 | OR | Woolf log | |
-| 比率（rate） | Wald（rate difference）/ log（rate ratio） | Poisson |
+| Rate | Wald (rate difference) / log (rate ratio) | Poisson |
 
-零格自動 +0.5 連續性校正（Haldane-Anscombe，作用於比值型指標）。
+Zero cells get an automatic +0.5 continuity correction (Haldane-Anscombe, applied to ratio measures).
 
-## 開發
+## Development
 
-- 純前端、單檔 `index.html` + `engine.js`（計算引擎，無 DOM 依賴）
-- 引擎測試：`node engine.test.js`
-- 圖示產生：`node tools/gen-icons.js`
-- 本機預覽：`node .serve.js` 後開 <http://localhost:8732/>
+- Pure frontend: single `index.html` + `engine.js` (calculation engine, no DOM dependency)
+- Engine tests: `node engine.test.js`
+- Icon generation: `node tools/gen-icons.js`
+- Local preview: run `node .serve.js` then open <http://localhost:8732/>
 
-## 結構
+## Structure
 
 ```
-index.html              UI（載入 engine.js）
-engine.js               計算引擎（瀏覽器 + Node 共用）
-engine.test.js          引擎測試
+index.html              UI (loads engine.js)
+engine.js               Calculation engine (shared by browser + Node)
+engine.test.js          Engine tests
 manifest.webmanifest    PWA manifest
-sw.js                   Service Worker（快取 shell）
-icons/                  PWA 圖示
-tools/gen-icons.js      圖示產生器
+sw.js                   Service worker (caches the shell)
+icons/                  PWA icons
+tools/gen-icons.js      Icon generator
 ```
