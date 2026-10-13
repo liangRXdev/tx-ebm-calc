@@ -42,7 +42,8 @@
     .card {
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 1.25rem 1.25rem 1.5rem;
-      margin-top: 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-top: 1.25rem;
+      box-shadow: 0 1px 2px rgba(44,44,44,.04), 0 4px 12px rgba(44,44,44,.04);
     }
     .card h2 { font-size: 1.05rem; margin: 0 0 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
     .card .hint { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 1rem; }
@@ -97,6 +98,7 @@
     /* key 卡是淡色底：muted 只有 4.36:1（harm 的淡紅底同樣 4.36:1），不過 AA */
     .metric.key .name, .metric.key .ci { color: var(--text-primary); }
     .metric.key.harm { border-color: var(--danger); background: rgba(192,57,43,0.07); }
+    .metric.key .val { font-size: 1.35rem; letter-spacing: -0.01em; }  /* 結論數字靠字級拉開層級 */
     .adv { margin-top: 0.8rem; }
     .adv summary { cursor: pointer; font-size: 0.82rem; color: var(--accent); }
     .adv .results { margin-top: 0.6rem; }
@@ -135,6 +137,31 @@
     .disclaimer { font-size: 0.72rem; color: var(--text-primary); text-align: center; margin-top: 2rem; }
     .err { color: var(--danger); font-size: 0.82rem; }
     .hidden { display: none !important; }
+
+    /* ── 互動質感：只做狀態回饋，不移動版面 ── */
+    button, input, select { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 100ms ease-out; }
+    button:active { transform: scale(.98); }
+    :is(button, input, select, a, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    /* 重算後只閃數值有變的卡；key 卡用 -key 版，避免動畫結束蓋掉淡色底 */
+    @keyframes metric-flash     { from { background-color: rgba(61,122,138,.22); } to { background-color: transparent; } }
+    @keyframes metric-flash-key { from { background-color: rgba(61,122,138,.22); } to { background-color: var(--accent-light); } }
+    .metric.is-updated     { animation: metric-flash 600ms ease-out; }
+    .metric.key.is-updated { animation: metric-flash-key 600ms ease-out; }
+    @keyframes metric-flash-harm { from { background-color: rgba(61,122,138,.22); } to { background-color: rgba(192,57,43,0.07); } }
+    .metric.key.harm.is-updated { animation: metric-flash-harm 600ms ease-out; }
+    @media (prefers-reduced-motion: reduce) {
+      button, input, select { transition: none; }
+      button:active { transform: none; }
+      .metric.is-updated, .metric.key.is-updated, .metric.key.harm.is-updated { animation: none; }
+    }
+    /* 使用者要求高對比：只覆寫 token（--border 白 4.92:1／米色 4.34:1） */
+    @media (prefers-contrast: more) {
+      :root {
+        --border:     #7A6F60;
+        --text-muted: var(--text-primary);
+        --accent:     var(--accent-hover);
+      }
+    }
 
     /* ── 列印報告（單頁匯總）── */
     #printReport { display: none; }
@@ -408,6 +435,20 @@
     return { kind: 'rate', r: T.computeRate({ eE, pyE, eC, pyC, horizon, outcomeIsGood: otype() === 'good' }) };
   }
 
+  // 重算閃示：以指標名稱比對前後的值＋CI 字串，只標記真的變了的卡；初次渲染不閃
+  function setMetrics(el, html) {
+    const sig = (m) => m.querySelector('.val').textContent + '|' +
+      (m.querySelector('.ci') ? m.querySelector('.ci').textContent : '');
+    const before = new Map();
+    el.querySelectorAll('.metric').forEach((m) => before.set(m.querySelector('.name').textContent, sig(m)));
+    el.innerHTML = html;
+    if (!before.size) return;
+    el.querySelectorAll('.metric').forEach((m) => {
+      const prev = before.get(m.querySelector('.name').textContent);
+      if (prev !== undefined && prev !== sig(m)) m.classList.add('is-updated');
+    });
+  }
+
   // ── 指標卡 ──
   function metricCard(name, val, ci, opts) {
     opts = opts || {};
@@ -453,8 +494,8 @@
     }
     const cpe = costPerEvent(r.nnt, r.benefit);
     if (cpe != null) html += metricCard('每預防 1 事件成本', money(cpe), `NNT ${ceilStr(r.nnt)} × 每人成本`);
-    $('metrics').innerHTML = html;
-    $('metricsAdv').innerHTML = adv;
+    setMetrics($('metrics'), html);
+    setMetrics($('metricsAdv'), adv);
   }
 
   // ── 白話 ──
