@@ -166,10 +166,11 @@
     /* ── 列印報告（單頁匯總）── */
     #printReport { display: none; }
     @media print {
-      @page { margin: 15mm; }
+      /* 邊界分兩層：@page 給預設值，#printReport 自帶 padding 兜底——列印對話框「邊界：無／最小」會覆蓋 @page */
+      @page { margin: 10mm; }
       body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .wrap { display: none !important; }
-      #printReport { display: block; font-family: 'Noto Sans TC', sans-serif; color: var(--text-primary); font-size: 13px; line-height: 1.55; }
+      #printReport { display: block; padding: 4mm 6mm; font-family: 'Noto Sans TC', sans-serif; color: var(--text-primary); font-size: 13px; line-height: 1.55; }
       #printReport .pr-head { border-bottom: 2px solid var(--accent); padding-bottom: 7px; margin-bottom: 12px;
         display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
       #printReport h1 { font-size: 20px; margin: 0; color: var(--accent); }
