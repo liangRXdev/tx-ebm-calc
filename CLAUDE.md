@@ -11,7 +11,7 @@
 - `engine.js` — **全部計算邏輯**。UMD 包裝，瀏覽器掛 `window.TxEbm`、Node 走 `module.exports`，就是為了能純 Node 測試
 - `engine.test.js` — 引擎測試，**這份就是規格**（期望值為手算／教科書值）
 - `index.html` — 只做 UI 與繪圖，**不要在這裡放計算邏輯**
-- `sw.js` — PWA shell 快取（`CACHE = 'tx-ebm-calc-v5'`，SHELL 含 `engine.js`）
+- `sw.js` — PWA shell 快取（目前版號見 `sw.js` 的 `CACHE`，SHELL 含 `engine.js`；activate 只刪 `tx-ebm-calc-` 前綴）
 - `tools/gen-icons.js` — 產生 PWA 圖示
 - 無 `_headers`、無 CSP（GH Pages 不控標頭），改行內 script 不需重算 hash
 
@@ -19,12 +19,15 @@
 
 1. **動 `engine.js` 前先看 `engine.test.js`** — 各項期望值有註解說明來源（如「ARR=0.05、NNT=20、RR=0.75、OR=0.7059」），比任何 prose 描述精確。
 2. 改完跑 `node engine.test.js`（純 Node，無外部依賴），**須全綠**。新增計算行為一併補測試。
-3. **改動 shell 檔案（index.html / engine.js / manifest / icons）→ 升 `sw.js` 的 `CACHE` 版本號**（`-v5` → `-v6`），否則使用者拿到舊快取。
+3. **改動 shell 檔案（index.html / engine.js / manifest / icons）→ 升 `sw.js` 的 `CACHE` 版本號**（現值見 `sw.js`，遞增 1），否則使用者拿到舊快取。
 4. 需在瀏覽器實測時用本機靜態伺服器跑 `localhost:8732`（dx-ebm-calc 用 8731，刻意區隔避免 SW scope 打架）。作者本機有 `.serve.js`，已 gitignore、不在 repo 內。
 
 ## 引擎 API 表面
 
-`zFor` / `wilson` / `newcombeRD` / `nntCI` / `ratioMeasures` / `direction` / `catesData` / `applyToBaseline` / `computeBinary` / `computeRate` / `fromCounts` / `fromRisks`
+`zFor` / `wilson` / `newcombeRD` / `nntCI` / `formatNntCI` / `ratioMeasures` / `direction` / `catesData` / `ceilNNT` / `costPerEvent` / `applyToBaseline` / `computeBinary` / `computeRate` / `fromCounts` / `fromRisks`
+
+- 輸入不合法一律丟 `RangeError`（繁中訊息，UI 直接顯示）；UI 只判斷欄位是否填齊
+- NNT 顯示一律用 `nntCeil`（`ceilNNT` 已去浮點誤差），UI 不得自行 `Math.ceil(1/ARR)`；ARR=0 時 `neutral=true`
 
 三種輸入模式都收斂到 `computeBinary`：`fromCounts`（四宮格）、`fromRisks`（EER/CER + 樣本數）、`computeRate`（人年，累積風險 `1 − e^(−rate·t)`）。新增輸入模式請照這個轉接器模式，不要另開計算路徑。
 
