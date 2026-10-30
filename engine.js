@@ -232,7 +232,7 @@
       nnt: arrAbs > 0 ? 1 / arrAbs : Infinity,
       nntCeil: ceilNNT(arrAbs),
       rr: ratios.rr,
-      rrr: ratios.rrr,
+      rrr: snapZero(ratios.rrr), // 去浮點殘差，避免顯示 −0.0%
       or: ratios.or,
       corrected: ratios.corrected,
       transportRR: ratios.rr, // 個別化外推用（零格時為校正後 RR）
@@ -286,6 +286,7 @@
       rateRatio,
       rateRatioCI: { lower: rateRatio * Math.exp(-z * seLnRR), upper: rateRatio * Math.exp(z * seLnRR) },
       riskE, riskC,
+      eer: riskE, cer: riskC, // 與 binary 結果同名，供白話/圖表共用
       arrSigned, arrAbs: Math.abs(arrSigned),
       benefit: dir.benefit,
       neutral: dir.neutral,

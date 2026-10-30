@@ -358,5 +358,17 @@ block(() => {
   approx('24 rate transportRR = riskE/riskC', rt.transportRR, 0.11750 / 0.18127, 1e-3);
 });
 
+// ── 25. rate 結果提供 eer/cer（= horizon 累積風險），白話文字才不會印出「由 — 維持在 —」──
+block(() => {
+  const rt = E.computeRate({ eE: 50, pyE: 2000, eC: 80, pyC: 2000, horizon: 5 });
+  approx('25 rate cer = riskC', rt.cer, 0.18127, 1e-4);
+  approx('25 rate eer = riskE', rt.eer, 0.11750, 1e-4);
+});
+
+// ── 26. EER=CER（浮點近似）時 RRR 為 0，不得出現 −0.0% ──
+block(() => {
+  eq('26 RRR 近似相等 = 0', E.fromRisks(0.03, 0.03, 70, 30).rrr, 0);
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
