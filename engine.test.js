@@ -243,7 +243,7 @@ block(() => {
   eq('17 端點=0 文字', E.formatNntCI(z), 'NNTB 10 … ∞');
   eq('17 端點=0（危害側）文字', E.formatNntCI(E.nntCI({ lower: -0.05, upper: 0 })), '∞ … NNTH 20');
   eq('17 兩端皆 0 文字', E.formatNntCI(E.nntCI({ lower: 0, upper: 0 })), '∞');
-  eq('17 跨 0 文字', E.formatNntCI(E.nntCI({ lower: -0.05631, upper: 0.15552 })), 'NNTB 6 … ∞ … NNTH 18');
+  eq('17 跨 0 文字', E.formatNntCI(E.nntCI({ lower: -0.05631, upper: 0.15552 })), 'NNTB 7 … ∞ … NNTH 18'); // 6.43 → 7（端點進位，見 27）
   const pos = E.nntCI({ lower: 0.02, upper: 0.1 });
   eq('17 正同號 low<high', pos.low < pos.high, true);
   approx('17 正同號 low', pos.low, 10, 1e-9);
@@ -368,6 +368,16 @@ block(() => {
 // ── 26. EER=CER（浮點近似）時 RRR 為 0，不得出現 −0.0% ──
 block(() => {
   eq('26 RRR 近似相等 = 0', E.fromRisks(0.03, 0.03, 70, 30).rrr, 0);
+});
+
+// ── 27. NNT CI 端點與點估計同樣無條件進位，區間必含點估計 ──
+// 原 CI 端點四捨五入：NNT 9.089 → 點估計 10，CI 8.71–9.48 → 「9–9」，點估計落在 CI 外
+block(() => {
+  const r = E.fromCounts(1, 17314, 1906, 15409);
+  eq('27 點估計', r.nntCeil, 10);
+  eq('27 CI 文字含點估計', E.formatNntCI(r.ci.nnt), '9–10');
+  eq('27 端點恰為整數不多進 1', E.formatNntCI(E.nntCI({ lower: 0.02, upper: 0.1 })), '10–50');
+  eq('27 跨 0 兩側皆進位', E.formatNntCI(E.nntCI({ lower: -0.05631, upper: 0.15552 })), 'NNTB 7 … ∞ … NNTH 18');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
