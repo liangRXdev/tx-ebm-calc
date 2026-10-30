@@ -376,15 +376,26 @@
   // ── 格式化工具 ──
   const pct = (v, d = 1) => isFinite(v) ? (v * 100).toFixed(d) + '%' : '—';
   const num = (v, d = 2) => isFinite(v) ? v.toFixed(d) : '—';
-  const ceilStr = (v) => isFinite(v) ? String(Math.ceil(v)) : '∞';
-  const infStr = (v) => isFinite(v) ? String(Math.round(v)) : '∞';
+  // NNT 一律用引擎的 nntCeil（已處理浮點誤差），不在 UI 自行 Math.ceil
+  const nntStr = (v) => isFinite(v) ? String(v) : '∞';
   const money = (v) => isFinite(v) ? Math.round(v).toLocaleString('en-US') + ' 元' : '—';
-  // 每預防 1 事件之成本 = NNT × 每人成本（僅效益情境、需有限 NNT）
+  // 每預防 1 事件之成本（引擎：成本 ÷ ARR）；成本輸入不合法時回 null，錯誤由 compute() 顯示
   function costPerEvent(nnt, benefit) {
-    const cv = $('cost').value;
-    if (cv === '' || !(+cv >= 0) || !benefit || !isFinite(nnt)) return null;
-    return nnt * (+cv);
+    try { return T.costPerEvent(nnt, $('cost').value, benefit); } catch (e) { return null; }
   }
+  const costNote = (nnt) => `每人成本 ÷ ARR（= NNT ${num(nnt, 1)} 未取整 × 成本）`;
+  // 絕對差名稱：隨結果事件性質與方向同步
+  function arrLabel(r) {
+    if (r.neutral) return '絕對差 (ARR)';
+    if (otype() === 'good') return r.benefit ? '絕對效益增加 (ABI)' : '絕對效益減少';
+    return r.benefit ? '絕對風險下降 (ARR)' : '絕對風險增加 (ARI)';
+  }
+  // RRR<0 時改稱「增加」並顯示絕對值，避免「下降 −25%」
+  function rrrLabel(r) {
+    if (r.rrr >= 0) return otype() === 'good' && r.rrr > 0 ? '相對效益減少 (RRR)' : '相對風險下降 (RRR)';
+    return otype() === 'good' ? '相對效益增加 (RBI)' : '相對風險增加 (RRI)';
+  }
+  const effectCls = (r) => ({ key: true, harm: !r.benefit && !r.neutral });
 
   // ── 範例（教學示意數值，非特定試驗）──
   const SCENARIOS = [
@@ -409,31 +420,35 @@
   }
 
   // ── 蒐集輸入 → 呼叫引擎 ──
+  // UI 只判斷「欄位是否填齊」；數值合法性由引擎驗證（RangeError 訊息直接顯示）
+  const val = (id) => $(id).value === '' ? NaN : +$(id).value;
   function compute() {
+    try {
+      const out = computeRaw();
+      if (out && !out.err && $('cost').value !== '') T.costPerEvent(1, $('cost').value, true); // 驗成本
+      return out;
+    } catch (e) {
+      if (e instanceof RangeError) return { err: e.message };
+      throw e;
+    }
+  }
+  function computeRaw() {
     const opts = { outcomeIsGood: otype() === 'good' };
     const m = mode();
     if (m === 'counts') {
       if (['a', 'b', 'c', 'd'].some((id) => $(id).value === '')) return null;
-      const a = +$('a').value, b = +$('b').value, c = +$('c').value, d = +$('d').value;
-      if ([a, b, c, d].some((x) => !isFinite(x) || x < 0)) return { err: '人數需為非負數。' };
-      if (a + b <= 0 || c + d <= 0) return { err: '每組人數總和需大於 0。' };
-      return { kind: 'binary', r: T.fromCounts(a, b, c, d, opts) };
+      return { kind: 'binary', r: T.fromCounts(val('a'), val('b'), val('c'), val('d'), opts) };
     }
     if (m === 'risk') {
-      const eer = +$('eer').value, cer = +$('cer').value;
       if ($('eer').value === '' || $('cer').value === '') return null;
-      if (!(eer >= 0 && eer <= 100 && cer >= 0 && cer <= 100)) return { err: '風險需介於 0–100%。' };
-      const nE = +$('nE').value || 0, nC = +$('nC').value || 0;
-      const hasN = nE > 0 && nC > 0;
-      const n1 = hasN ? nE : 1e6, n2 = hasN ? nC : 1e6; // 無樣本數時用大數避免 CI 失真，並標示
-      return { kind: 'binary', noCI: !hasN, r: T.fromRisks(eer / 100, cer / 100, n1, n2, opts) };
+      const nE = $('nE').value === '' ? null : val('nE'), nC = $('nC').value === '' ? null : val('nC');
+      const r = T.fromRisks(val('eer') / 100, val('cer') / 100, nE, nC, opts);
+      return { kind: 'binary', noCI: r.noCI, r };
     }
     // rate
-    const eE = +$('eE').value, pyE = +$('pyE').value, eC = +$('eC').value, pyC = +$('pyC').value, horizon = +$('horizon').value;
-    if ([$('eE'), $('pyE'), $('eC'), $('pyC')].some((el) => el.value === '')) return null;
-    if (!(pyE > 0 && pyC > 0 && horizon > 0)) return { err: '人年與時間框架需大於 0。' };
-    if (eE <= 0 || eC <= 0) return { err: '人年模式需兩組皆有事件數（>0）才能算比率 CI。' };
-    return { kind: 'rate', r: T.computeRate({ eE, pyE, eC, pyC, horizon, outcomeIsGood: otype() === 'good' }) };
+    if (['eE', 'pyE', 'eC', 'pyC'].some((id) => $(id).value === '')) return null;
+    return { kind: 'rate', r: T.computeRate({ eE: val('eE'), pyE: val('pyE'), eC: val('eC'), pyC: val('pyC'),
+      horizon: val('horizon'), outcomeIsGood: opts.outcomeIsGood }) };
   }
 
   // 重算閃示：以指標名稱比對前後的值＋CI 字串，只標記真的變了的卡；初次渲染不閃
@@ -458,10 +473,9 @@
       (ci ? `<div class="ci">${ci}</div>` : '') + '</div>';
   }
 
-  function nntCIText(nntci) {
-    if (!nntci) return '';
-    if (nntci.type === 'finite') return `95% CI ${infStr(nntci.low)}–${infStr(nntci.high)}`;
-    return `95% CI: NNTB ${infStr(nntci.benefit)} … ∞ … NNTH ${infStr(nntci.harm)}`;
+  function nntCIText(r) {
+    if (!r.ci) return '（未輸入樣本數，略 CI）';
+    return (r.ci.nnt.type === 'finite' ? '95% CI ' : '95% CI: ') + T.formatNntCI(r.ci.nnt);
   }
 
   function renderMetrics(out) {
@@ -469,11 +483,10 @@
     let html = '', adv = '';
     if (out.kind === 'binary') {
       const isNNT = r.effectLabel === 'NNT';
-      const effName = isNNT ? 'NNT（益一需治）' : 'NNH（害一需治）';
-      const arrName = (otype() === 'good' ? '絕對效益' : (r.benefit ? '絕對風險下降 (ARR)' : '絕對風險增加 (ARI)'));
-      html += metricCard(effName, ceilStr(r.nnt), nntCIText(r.ci.nnt), { key: true, harm: !r.benefit });
-      html += metricCard(arrName, pct(r.arrAbs), out.noCI ? '（未輸入樣本數，略 CI）' : `95% CI ${pct(r.ci.arr.lower)}–${pct(r.ci.arr.upper)}`);
-      html += metricCard('相對風險下降 (RRR)', pct(r.rrr), '');
+      const effName = r.neutral ? 'NNT（無差異）' : (isNNT ? 'NNT（益一需治）' : 'NNH（害一需治）');
+      html += metricCard(effName, nntStr(r.nntCeil), nntCIText(r), effectCls(r));
+      html += metricCard(arrLabel(r), pct(r.arrAbs), out.noCI ? '（未輸入樣本數，略 CI）' : `95% CI ${pct(r.ci.arrAbs.lower)}–${pct(r.ci.arrAbs.upper)}`);
+      html += metricCard(rrrLabel(r), pct(Math.abs(r.rrr)), '');
       html += metricCard('對照組事件率 CER', pct(r.cer), '');
       html += metricCard('介入組事件率 EER', pct(r.eer), '');
       adv += metricCard('相對風險 (RR)', num(r.rr), out.noCI ? '' : `95% CI ${num(r.ci.rr.lower)}–${num(r.ci.rr.upper)}`);
@@ -482,7 +495,7 @@
     } else {
       const per = 1000;
       const isNNT = r.effectLabel === 'NNT';
-      html += metricCard(`${r.horizon} 年 ${isNNT ? 'NNT' : 'NNH'}`, ceilStr(r.nnt), '', { key: true, harm: !r.benefit });
+      html += metricCard(`${r.horizon} 年 ${isNNT ? 'NNT' : 'NNH'}${r.neutral ? '（無差異）' : ''}`, nntStr(r.nntCeil), '', effectCls(r));
       html += metricCard(`${r.horizon} 年絕對風險差`, pct(r.arrAbs), '');
       html += metricCard('比率差（每 1000 人年）',
         num(r.rateDiff * per, 1),
@@ -494,7 +507,7 @@
       $('corrNote').classList.add('hidden');
     }
     const cpe = costPerEvent(r.nnt, r.benefit);
-    if (cpe != null) html += metricCard('每預防 1 事件成本', money(cpe), `NNT ${ceilStr(r.nnt)} × 每人成本`);
+    if (cpe != null) html += metricCard('每預防 1 事件成本', money(cpe), costNote(r.nnt));
     setMetrics($('metrics'), html);
     setMetrics($('metricsAdv'), adv);
   }
@@ -514,12 +527,15 @@
     const cerP = pct(r.cer), eerP = pct(r.eer);
     const dirWord = r.eer < r.cer ? '降至' : (r.eer > r.cer ? '升至' : '維持在');
     const horizon = out.kind === 'rate' ? `在 ${r.horizon} 年內` : '';
-    const arrCI = out.kind === 'binary' && !out.noCI ? `（95% CI ${pct(r.ci.arr.lower)}–${pct(r.ci.arr.upper)}）` : '';
-    const effNum = ceilStr(r.nnt);
+    const arrCI = out.kind === 'binary' && !out.noCI ? `（95% CI ${pct(r.ci.arrAbs.lower)}–${pct(r.ci.arrAbs.upper)}）` : '';
+    const effNum = nntStr(r.nntCeil);
     const effLabel = r.effectLabel;
 
     let line1, line2;
-    if (otype() === 'good') {
+    if (r.neutral) {
+      line1 = `在${n.pop}中，${n.int}與${n.ctl}${horizon}「${n.out}」的發生率皆為 ${cerP}，絕對差 0${arrCI}。`;
+      line2 = '兩組無絕對差異（NNT = ∞），無法換算成「每治療幾人」。';
+    } else if (otype() === 'good') {
       // 有益事件
       const word = r.benefit ? '提高' : '降低';
       line1 = `在${n.pop}中，相較於${n.ctl}，${n.int}${horizon}將「${n.out}」的發生率由 ${cerP} ${dirWord} ${eerP}，` +
@@ -531,7 +547,7 @@
       // 不良事件
       const word = r.benefit ? '下降' : '增加';
       const arrName = r.benefit ? 'ARR' : 'ARI';
-      const rrrLine = out.kind === 'binary' ? ` 相對風險下降 ${pct(r.rrr)}。` : '';
+      const rrrLine = out.kind === 'binary' ? ` ${rrrLabel(r).replace(/ \(.*\)$/, '')} ${pct(Math.abs(r.rrr))}。` : '';
       line1 = `在${n.pop}中，相較於${n.ctl}，${n.int}${horizon}將「${n.out}」的絕對風險由 ${cerP} ${dirWord} ${eerP}，` +
         `絕對風險${word} ${pct(r.arrAbs)}（${arrName}）${arrCI}。${rrrLine}`;
       line2 = r.benefit
@@ -541,29 +557,26 @@
 
     // NNT CI 補述
     let ciLine = '';
-    if (out.kind === 'binary' && r.ci.nnt) {
+    if (out.kind === 'binary' && r.ci) {
       ciLine = r.ci.nnt.type === 'finite'
-        ? `\nNNT 95% CI：${infStr(r.ci.nnt.low)}–${infStr(r.ci.nnt.high)} 人。`
-        : `\nNNT 95% CI 跨越「無差異」：NNTB ${infStr(r.ci.nnt.benefit)} … ∞ … NNTH ${infStr(r.ci.nnt.harm)}（差異未達統計顯著）。`;
+        ? `\n${r.effectLabel} 95% CI：${T.formatNntCI(r.ci.nnt)} 人。`
+        : `\nNNT 95% CI 跨越「無差異」：${T.formatNntCI(r.ci.nnt)}（差異未達統計顯著）。`;
     }
     // 成本補述
     let costLine = '';
     const cpe = costPerEvent(out.r.nnt, out.r.benefit);
     if (cpe != null) {
-      costLine = `\n以每人成本 ${(+$('cost').value).toLocaleString('en-US')} 元計，每預防 1 件「${n.out}」約需 ${money(cpe)}（NNT ${ceilStr(out.r.nnt)} × 成本）。`;
+      costLine = `\n以每人成本 ${(+$('cost').value).toLocaleString('en-US')} 元計，每預防 1 件「${n.out}」約需 ${money(cpe)}（${costNote(out.r.nnt)}）。`;
     }
     // 個別化外推補述
     let peerLine = '';
-    const pv = $('peer').value;
-    if (pv !== '' && +pv > 0 && +pv <= 100) {
-      const rr = transportRR(out);
-      if (isFinite(rr)) {
-        const pp = TxEbm.applyToBaseline(rr, +pv / 100, otype() === 'good');
-        peerLine = `\n套用到病人個別基線風險 ${pct(+pv / 100)}（假設 RR ${num(rr)} 不變）：` +
-          `個別化 ${pp.effectLabel} ${ceilStr(pp.nnt)}（ARR ${pct(pp.arrAbs)}）。`;
-        const pcpe = costPerEvent(pp.nnt, pp.benefit);
-        if (pcpe != null) peerLine += ` 個別化每預防 1 件約 ${money(pcpe)}。`;
-      }
+    const pp = personalize(out);
+    if (pp && !pp.err) {
+      peerLine = `\n套用到病人個別基線風險 ${pct(pp.peer)}（假設 RR ${num(pp.rr)} 不變，RRR 固定）：` +
+        `個別化 ${pp.effectLabel} ${nntStr(pp.nntCeil)}（${arrLabel(pp)} ${pct(pp.arrAbs)}）。` +
+        (pp.capped ? ' 註：PEER×RR 超過 100%，病人 EER 已截為 100%，RR 固定假設不成立。' : '');
+      const pcpe = costPerEvent(pp.nnt, pp.benefit);
+      if (pcpe != null) peerLine += ` 個別化每預防 1 件約 ${money(pcpe)}。`;
     }
     return line1 + '\n' + line2 + ciLine + costLine + peerLine;
   }
@@ -614,6 +627,8 @@
     const { cbSafe, icon, arrange } = opts;
     const size = pad * 2 + (cols - 1) * gap + r * 2;
     const P = catesPalette(c.changedType, cbSafe);
+    // 有益事件：「發生事件」是好結果，未發生/發生兩群的底色對調，與效益方向一致
+    if (c.outcomeIsGood) { const t = P.good; P.good = P.bad; P.bad = t; }
     // 排列：群聚 good→changed→bad（changed 集中、最醒目）；隨機散布則洗牌
     const seq = [];
     for (let i = 0; i < c.good; i++) seq.push('good');
@@ -638,11 +653,13 @@
       const cy = pad + r + Math.floor(i / cols) * gap;
       g += catesGlyph(k, cx, cy, P, icon);
     });
-    const changedLabel = c.changedType === 'helped' ? '因治療避免事件' : '因治療多出事件';
+    const changedLabel = c.outcomeIsGood
+      ? (c.eventChange === 'more' ? '因治療多達成目標事件' : '因治療少達成目標事件')
+      : (c.eventChange === 'fewer' ? '因治療避免事件' : '因治療多出事件');
     const swatch = (col, hatch) => hatch
       ? `<i style="background:${col};background-image:repeating-linear-gradient(45deg,transparent 0 2px,#5a3d00 2px 3px)"></i>`
       : `<i style="background:${col}"></i>`;
-    return `<div class="chart-box"><h3>每 100 名相似病人</h3>` +
+    return `<div class="chart-box"><h3>${opts.title || '每 100 名相似病人'}</h3>` +
       `<svg viewBox="0 0 ${size} ${size}" role="img" aria-label="Cates plot">${defs}${g}</svg>` +
       `<div class="legend">` +
       `<span>${swatch(P.good, false)}${c.good}：不論是否治療都不會發生</span>` +
@@ -684,34 +701,41 @@
     };
     $('catesOpts').classList.toggle('hidden', m === 'bar'); // 純長條時隱藏 Cates 選項
     let html = '';
-    if (m === 'cates' || m === 'both') html += drawCates(r.cates, opts);
+    if (m === 'cates' || m === 'both') {
+      const pp = personalize(out);
+      const both = pp && !pp.err;
+      html += drawCates(r.cates, Object.assign({ title: both ? '試驗族群：每 100 名相似病人' : '' }, opts));
+      // 個別化：另繪一張以病人基線風險 (PEER) 計算的 Cates plot
+      if (both) html += drawCates(pp.cates, Object.assign({ title: `個別化（基線 ${pct(pp.peer)}，RRR 固定假設）：每 100 名` }, opts));
+    }
     if (m === 'bar' || m === 'both') html += drawBar(cer, eer);
     $('charts').innerHTML = html;
   }
 
   // ── 個別化外推（套用試驗 RR 到病人基線 PEER）──
-  function transportRR(out) {
-    return out.kind === 'rate' ? out.r.riskE / out.r.riskC : out.r.rr;
+  // 回傳 null（未填）、{err}（輸入不合法）或引擎 applyToBaseline 結果
+  function personalize(out) {
+    const v = $('peer').value;
+    if (v === '' || !out || !isFinite(out.r.transportRR)) return null;
+    try { return T.applyToBaseline(out.r.transportRR, +v / 100, otype() === 'good'); }
+    catch (e) { if (e instanceof RangeError) return { err: e.message }; throw e; }
   }
+  const RRR_ASSUMPTION = '假設相對風險 (RR) 可外推（RRR 固定，Sackett/CEBM 法）；信賴區間未隨基線重算。';
+  const CAP_NOTE = 'PEER×RR 超過 100%，病人預估 EER 已截為 100%——此時 RR 固定假設已不成立，結果僅供參考。';
   function renderPersonalized(out) {
     const box = $('personalized');
-    const v = $('peer').value;
-    if (v === '') { box.innerHTML = ''; box.classList.add('hidden'); return; }
-    const peer = +v;
-    if (!(peer > 0 && peer <= 100)) {
-      box.innerHTML = '<p class="err">PEER 需介於 0–100%。</p>'; box.classList.remove('hidden'); return;
-    }
-    const rr = transportRR(out);
-    if (!isFinite(rr)) { box.innerHTML = ''; box.classList.add('hidden'); return; }
-    const p = TxEbm.applyToBaseline(rr, peer / 100, otype() === 'good');
+    const p = personalize(out);
+    if (!p) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+    if (p.err) { box.innerHTML = `<p class="err">${p.err}</p>`; box.classList.remove('hidden'); return; }
     const isNNT = p.effectLabel === 'NNT';
-    let h = `<h3 class="sub-h">個別化外推：套用試驗 RR ${num(rr)} 到病人基線 ${pct(peer / 100)}</h3><div class="results">`;
-    h += metricCard(isNNT ? '個別化 NNT' : '個別化 NNH', ceilStr(p.nnt), '', { key: true, harm: !p.benefit });
-    h += metricCard('個別化 ARR', pct(p.arrAbs), '');
+    let h = `<h3 class="sub-h">個別化外推：套用試驗 RR ${num(p.rr)} 到病人基線 ${pct(p.peer)}</h3><div class="results">`;
+    h += metricCard(p.neutral ? '個別化 NNT（無差異）' : (isNNT ? '個別化 NNT' : '個別化 NNH'), nntStr(p.nntCeil), '', effectCls(p));
+    h += metricCard('個別化 ' + arrLabel(p), pct(p.arrAbs), '');
     h += metricCard('病人預估 EER', pct(p.eer), '');
     const pcpe = costPerEvent(p.nnt, p.benefit);
-    if (pcpe != null) h += metricCard('個別化每預防 1 事件成本', money(pcpe), `NNT ${ceilStr(p.nnt)} × 每人成本`);
-    h += '</div><p class="hint">假設相對風險 (RR) 可外推（RRR 固定，Sackett/CEBM 法）；信賴區間未隨基線重算。</p>';
+    if (pcpe != null) h += metricCard('個別化每預防 1 事件成本', money(pcpe), costNote(p.nnt));
+    h += `</div><p class="hint">${RRR_ASSUMPTION}</p>`;
+    if (p.capped) h += `<p class="err">${CAP_NOTE}</p>`;
     box.innerHTML = h; box.classList.remove('hidden');
   }
 
@@ -743,22 +767,17 @@
     const r = out.r, rows = [];
     if (out.kind === 'binary') {
       const isNNT = r.effectLabel === 'NNT';
-      const arrName = (otype() === 'good' ? '絕對效益' : (r.benefit ? '絕對風險下降 (ARR)' : '絕對風險增加 (ARI)'));
-      const nntCi = r.ci.nnt
-        ? (r.ci.nnt.type === 'finite'
-          ? `${infStr(r.ci.nnt.low)}–${infStr(r.ci.nnt.high)}`
-          : `NNTB ${infStr(r.ci.nnt.benefit)} … ∞ … NNTH ${infStr(r.ci.nnt.harm)}`)
-        : '';
-      rows.push([isNNT ? 'NNT（益一需治）' : 'NNH（害一需治）', ceilStr(r.nnt), nntCi, true]);
-      rows.push([arrName, pct(r.arrAbs), out.noCI ? '（未輸入樣本數）' : `${pct(r.ci.arr.lower)}–${pct(r.ci.arr.upper)}`]);
-      rows.push(['相對風險下降 (RRR)', pct(r.rrr), '']);
+      const nntCi = r.ci ? T.formatNntCI(r.ci.nnt) : '（未輸入樣本數）';
+      rows.push([r.neutral ? 'NNT（無差異）' : (isNNT ? 'NNT（益一需治）' : 'NNH（害一需治）'), nntStr(r.nntCeil), nntCi, true]);
+      rows.push([arrLabel(r), pct(r.arrAbs), out.noCI ? '（未輸入樣本數）' : `${pct(r.ci.arrAbs.lower)}–${pct(r.ci.arrAbs.upper)}`]);
+      rows.push([rrrLabel(r), pct(Math.abs(r.rrr)), '']);
       rows.push(['對照組事件率 CER', pct(r.cer), '']);
       rows.push(['介入組事件率 EER', pct(r.eer), '']);
       rows.push(['相對風險 (RR)', num(r.rr), out.noCI ? '' : `${num(r.ci.rr.lower)}–${num(r.ci.rr.upper)}`]);
       rows.push(['勝算比 (OR)', num(r.or), out.noCI ? '' : `${num(r.ci.or.lower)}–${num(r.ci.or.upper)}`]);
     } else {
       const per = 1000, isNNT = r.effectLabel === 'NNT';
-      rows.push([`${r.horizon} 年 ${isNNT ? 'NNT' : 'NNH'}`, ceilStr(r.nnt), '', true]);
+      rows.push([`${r.horizon} 年 ${isNNT ? 'NNT' : 'NNH'}${r.neutral ? '（無差異）' : ''}`, nntStr(r.nntCeil), '', true]);
       rows.push([`${r.horizon} 年絕對風險差`, pct(r.arrAbs), '']);
       rows.push(['比率差（每 1000 人年）', num(r.rateDiff * per, 1), `${num(r.rateDiffCI.lower * per, 1)}–${num(r.rateDiffCI.upper * per, 1)}`]);
       rows.push(['比率比 (Rate Ratio)', num(r.rateRatio), `${num(r.rateRatioCI.lower)}–${num(r.rateRatioCI.upper)}`]);
@@ -766,27 +785,25 @@
       rows.push(['介入組累積風險', pct(r.riskE), `${num(r.rateE * per, 1)}/1000人年`]);
     }
     const cpe = costPerEvent(r.nnt, r.benefit);
-    if (cpe != null) rows.push(['每預防 1 事件成本', money(cpe), `NNT ${ceilStr(r.nnt)} × 成本`]);
+    if (cpe != null) rows.push(['每預防 1 事件成本', money(cpe), costNote(r.nnt)]);
     return rows.map((row) =>
       `<tr${row[3] ? ' class="key"' : ''}><th>${row[0]}</th><td class="v">${row[1]}</td><td class="ci">${row[2] || ''}</td></tr>`
     ).join('');
   }
 
   function reportPeerHTML(out) {
-    const v = $('peer').value;
-    if (v === '' || !(+v > 0 && +v <= 100)) return '';
-    const rr = transportRR(out);
-    if (!isFinite(rr)) return '';
-    const pp = TxEbm.applyToBaseline(rr, +v / 100, otype() === 'good');
+    const pp = personalize(out);
+    if (!pp || pp.err) return '';
     const pcpe = costPerEvent(pp.nnt, pp.benefit);
     return `<section>
       <h2>個別化外推（套用試驗 RR 到病人基線）</h2>
       <table class="pr-metrics">
-        <tr class="key"><th>個別化 ${pp.effectLabel}</th><td class="v">${ceilStr(pp.nnt)}</td><td class="ci">RR ${num(rr)} · 基線 ${pct(+v / 100)}</td></tr>
-        <tr><th>個別化 ARR</th><td class="v">${pct(pp.arrAbs)}</td><td class="ci"></td></tr>
+        <tr class="key"><th>個別化 ${pp.effectLabel}${pp.neutral ? '（無差異）' : ''}</th><td class="v">${nntStr(pp.nntCeil)}</td><td class="ci">RR ${num(pp.rr)} · 基線 ${pct(pp.peer)}</td></tr>
+        <tr><th>個別化 ${arrLabel(pp)}</th><td class="v">${pct(pp.arrAbs)}</td><td class="ci"></td></tr>
         <tr><th>病人預估 EER</th><td class="v">${pct(pp.eer)}</td><td class="ci"></td></tr>
-        ${pcpe != null ? `<tr><th>個別化每預防 1 事件成本</th><td class="v">${money(pcpe)}</td><td class="ci"></td></tr>` : ''}
-      </table></section>`;
+        ${pcpe != null ? `<tr><th>個別化每預防 1 事件成本</th><td class="v">${money(pcpe)}</td><td class="ci">${costNote(pp.nnt)}</td></tr>` : ''}
+      </table>
+      <p class="pr-disclaimer">${RRR_ASSUMPTION}${pp.capped ? ' ' + CAP_NOTE : ''}</p></section>`;
   }
 
   function buildPrintReport(out) {
