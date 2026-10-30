@@ -90,8 +90,9 @@
 
   // ── NNT CI 文字（畫面、白話、列印共用，避免三處格式分歧）──
   // 跨 0 時不可塌縮成單一有限值；CI 端點恰為 0 時該側為 ∞，只列有限的一側。
+  // 端點與點估計（ceilNNT）同樣無條件進位：NNT 隨 ARR 單調，兩端同法取整才保證區間含點估計。
   function formatNntCI(ci) {
-    const r = (v) => String(Math.round(v));
+    const r = (v) => String(Math.ceil(+v.toPrecision(12)));
     if (ci.type === 'finite') return `${r(ci.low)}–${r(ci.high)}`;
     const parts = [];
     if (isFinite(ci.benefit)) parts.push(`NNTB ${r(ci.benefit)}`);

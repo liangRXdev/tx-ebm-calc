@@ -28,6 +28,7 @@
 
 - 輸入不合法一律丟 `RangeError`（繁中訊息，UI 直接顯示）；UI 只判斷欄位是否填齊
 - NNT 顯示一律用 `nntCeil`（`ceilNNT` 已去浮點誤差），UI 不得自行 `Math.ceil(1/ARR)`；ARR=0 時 `neutral=true`
+- NNT CI 文字一律用 `formatNntCI`，端點與點估計同樣無條件進位（四捨五入會讓點估計落在 CI 外，如 NNT 10、CI「9–9」）
 
 三種輸入模式都收斂到 `computeBinary`：`fromCounts`（四宮格）、`fromRisks`（EER/CER + 樣本數）、`computeRate`（人年，累積風險 `1 − e^(−rate·t)`）。新增輸入模式請照這個轉接器模式，不要另開計算路徑。
 
